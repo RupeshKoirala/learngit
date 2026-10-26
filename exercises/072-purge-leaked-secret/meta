@@ -1,0 +1,4 @@
+title=Purge a leaked .env secret from all history
+module=09 · Disasters & bad commits
+level=3
+needs=filter-repo

@@ -1,0 +1,4 @@
+title=Evict a 20 MB video from history to slim every clone
+module=09 · Disasters & bad commits
+level=3
+needs=filter-repo
