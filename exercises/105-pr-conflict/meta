@@ -1,0 +1,6 @@
+title=Main moved: resolve a pull request conflict
+module=12 · GitHub for real
+level=2
+workdir=../github-lab
+needs=gh
+ci=skip

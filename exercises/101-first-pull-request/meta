@@ -1,0 +1,6 @@
+title=Your first pull request with gh (what / why / how to test)
+module=12 · GitHub for real
+level=1
+workdir=../github-lab
+needs=gh
+ci=skip

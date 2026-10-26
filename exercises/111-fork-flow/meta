@@ -1,0 +1,6 @@
+title=Open-source fork flow (safe): fork, upstream, sync, PR into your fork
+module=12 · GitHub for real
+level=2
+workdir=.
+needs=gh
+ci=skip

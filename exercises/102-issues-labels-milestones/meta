@@ -1,0 +1,6 @@
+title=Issues like a team: labels, milestone, assignee, "Fixes #N"
+module=12 · GitHub for real
+level=2
+workdir=../github-lab
+needs=gh
+ci=skip

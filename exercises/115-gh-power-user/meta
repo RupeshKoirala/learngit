@@ -1,0 +1,6 @@
+title=gh power user: pr checkout, run watch, api --jq, alias, search
+module=12 · GitHub for real
+level=2
+workdir=../github-lab
+needs=gh
+ci=skip

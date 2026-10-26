@@ -1,0 +1,6 @@
+title=Protect main: branch protection or a ruleset via gh api
+module=12 · GitHub for real
+level=3
+workdir=../github-lab
+needs=gh
+ci=skip

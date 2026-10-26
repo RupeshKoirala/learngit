@@ -1,0 +1,6 @@
+title=Merge commit vs squash vs rebase: merge 3 PRs, compare the graph
+module=12 · GitHub for real
+level=2
+workdir=../github-lab
+needs=gh
+ci=skip

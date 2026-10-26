@@ -1,0 +1,6 @@
+title=Code review: line comments, a suggestion block, resolve threads
+module=12 · GitHub for real
+level=2
+workdir=../github-lab
+needs=gh
+ci=skip

@@ -1,0 +1,6 @@
+title=Releases: tag v1.0.0, generated notes, attach a build
+module=12 · GitHub for real
+level=2
+workdir=../github-lab
+needs=gh
+ci=skip

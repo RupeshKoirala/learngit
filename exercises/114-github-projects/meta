@@ -1,0 +1,6 @@
+title=Plan work like a PM: GitHub Project, statuses, milestone due date
+module=12 · GitHub for real
+level=2
+workdir=../github-lab
+needs=gh
+ci=skip
