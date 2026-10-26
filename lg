@@ -1,0 +1,172 @@
+#!/usr/bin/env bash
+# lg — the learngit exercise runner.  Works with bash 3.2+ (macOS default) and git 2.30+.
+#   ./lg list | start <n> | task | check | hint | solution | graph | event | next | reset | where | doctor
+set -u
+
+LG_ROOT=$(cd "$(dirname "$0")" && pwd)
+LG_HOME=${LEARNGIT_HOME:-$HOME/learngit-playground}
+EX_DIR="$LG_ROOT/exercises"
+mkdir -p "$LG_HOME"
+
+if [ -t 1 ]; then B=$'\033[1m'; D=$'\033[2m'; G=$'\033[32m'; Y=$'\033[33m'; C=$'\033[36m'; R=$'\033[31m'; X=$'\033[0m'; else B= D= G= Y= C= R= X=; fi
+die() { printf '%s%s%s\n' "$R" "$*" "$X" >&2; exit 1; }
+
+meta() { sed -n "s/^$2=//p" "$1/meta" 2>/dev/null | head -1; }   # meta <exdir> <key>
+workdir() { _w=$(meta "$EX_DIR/$1" workdir); echo "${_w:-repo}"; }
+
+all_ex() { for d in "$EX_DIR"/[0-9][0-9][0-9]-*/; do [ -f "$d/setup.sh" ] && basename "$d"; done; }
+
+find_ex() {   # find_ex <number|name>  -> prints exercise folder name
+  _q="$1"
+  case "$_q" in
+    *[!0-9]*) for e in $(all_ex); do case "$e" in *"$_q"*) echo "$e"; return 0;; esac; done ;;
+    *) _n=$(printf '%03d' "$((10#$_q))"); for e in $(all_ex); do case "$e" in "$_n"-*) echo "$e"; return 0;; esac; done ;;
+  esac
+  return 1
+}
+
+current() {   # the exercise you're in: from your working directory, else the last one started
+  case "$PWD/" in "$LG_HOME"/[0-9][0-9][0-9]-*/*) _r=${PWD#"$LG_HOME"/}; echo "${_r%%/*}"; return 0;; esac
+  [ -f "$LG_HOME/.current" ] && cat "$LG_HOME/.current" && return 0
+  return 1
+}
+
+resolve() { if [ $# -gt 0 ] && [ -n "${1:-}" ]; then find_ex "$1" || die "No exercise matches '$1'. Try ./lg list"; else current || die "No exercise started yet. Try: ./lg start 1"; fi; }
+
+learner() {
+  LG_LEARNER_NAME=$(git config --global user.name 2>/dev/null || true); [ -n "$LG_LEARNER_NAME" ] || LG_LEARNER_NAME="Learner"
+  LG_LEARNER_EMAIL=$(git config --global user.email 2>/dev/null || true); [ -n "$LG_LEARNER_EMAIL" ] || LG_LEARNER_EMAIL="learner@example.com"
+  export LG_LEARNER_NAME LG_LEARNER_EMAIL
+}
+
+run_script() {   # run_script <exercise> <lib> <script>   runs inside the sandbox with helpers loaded
+  _e="$1"; learner
+  ( cd "$LG_HOME/$_e" && \
+    LG_ROOT="$LG_ROOT" LG_DIR="$LG_HOME/$_e" LG_EX="$EX_DIR/$_e" \
+    GIT_CONFIG_GLOBAL="$LG_ROOT/lib/setup.gitconfig" GIT_CONFIG_NOSYSTEM=1 \
+    "$BASH" -c 'set -e; . "$1"; . "$2"' lg "$LG_ROOT/lib/$2" "$EX_DIR/$_e/$3" )
+}
+
+done_mark() { grep -qx "$1" "$LG_HOME/.progress" 2>/dev/null; }
+
+show_task() {
+  _e="$1"; echo; sed -e "s/^# \(.*\)/$B$C\1$X/" -e "s/^## \(.*\)/$B\1$X/" "$EX_DIR/$_e/README.md"; echo
+  printf '%sSandbox:%s cd %s\n' "$B" "$X" "$LG_HOME/$_e/$(workdir "$_e")"
+  printf '%sWhen done:%s ./lg check    %sStuck:%s ./lg hint    %sSee the graph:%s ./lg graph\n' "$B" "$X" "$B" "$X" "$B" "$X"
+}
+
+cmd_list() {
+  _mod=""; _n=0; _s=0
+  for e in $(all_ex); do
+    m=$(meta "$EX_DIR/$e" module); t=$(meta "$EX_DIR/$e" title); lv=$(meta "$EX_DIR/$e" level)
+    if [ "$m" != "$_mod" ]; then printf '\n%s%s%s\n' "$B$C" "$m" "$X"; _mod="$m"; fi
+    st="  "; if done_mark "$e"; then st="$G✔$X"; _s=$((_s+1)); fi; _n=$((_n+1))
+    stars=$(printf '%*s' "${lv:-1}" '' | tr ' ' '*')
+    printf ' %s %s%s%s  %-58s %s%s%s\n' "$st" "$D" "${e%%-*}" "$X" "$t" "$Y" "$stars" "$X"
+  done
+  printf '\n%s%d of %d solved.%s  Start one with ./lg start <number>\n' "$B" "$_s" "$_n" "$X"
+}
+
+cmd_start() {
+  [ $# -ge 1 ] || die "usage: ./lg start <number>"
+  e=$(resolve "$1"); need=$(meta "$EX_DIR/$e" needs)
+  for n in $need; do
+    case "$n" in
+      gh) command -v gh >/dev/null || die "This exercise needs the GitHub CLI: brew install gh && gh auth login" ;;
+      filter-repo) git filter-repo --version >/dev/null 2>&1 || die "This exercise needs git-filter-repo: brew install git-filter-repo" ;;
+    esac
+  done
+  rm -rf "${LG_HOME:?}/$e"; mkdir -p "$LG_HOME/$e"
+  run_script "$e" setup.sh setup.sh || die "Setup failed (that's a bug in the exercise — please report it)."
+  echo "$e" > "$LG_HOME/.current"
+  show_task "$e"
+}
+
+cmd_check() {
+  e=$(resolve "${1:-}"); [ -d "$LG_HOME/$e" ] || die "Exercise $e isn't set up. Run ./lg start ${e%%-*}"
+  printf '%sChecking %s%s\n' "$B" "$e" "$X"
+  if run_script "$e" check.sh check.sh; then
+    done_mark "$e" || echo "$e" >> "$LG_HOME/.progress"
+    nx=$(next_unsolved); [ -n "$nx" ] && printf 'Next up: %s./lg start %s%s  (%s)\n' "$B" "${nx%%-*}" "$X" "$(meta "$EX_DIR/$nx" title)"
+    return 0
+  fi
+  return 1
+}
+
+cmd_hint() {
+  e=$(resolve "${1:-}"); f="$EX_DIR/$e/hints.md"; [ -f "$f" ] || die "No hints for this one."
+  cnt=$(grep -c '^---$' "$f"); total=$((cnt + 1))
+  seen_f="$LG_HOME/$e/.hints"; seen=$(cat "$seen_f" 2>/dev/null || echo 0)
+  k=$((seen + 1)); [ "$k" -gt "$total" ] && k=$total
+  echo "$k" > "$seen_f" 2>/dev/null || true
+  printf '%sHint %d of %d%s\n\n' "$B$Y" "$k" "$total" "$X"
+  awk -v k="$k" 'BEGIN{n=1} /^---$/{n++; next} n==k' "$f"
+  [ "$k" -lt "$total" ] && printf '\n%s(run ./lg hint again for a bigger hint)%s\n' "$D" "$X"
+  return 0
+}
+
+cmd_solution() {
+  e=$(resolve "${1:-}")
+  if [ -t 0 ]; then printf 'Show the full solution for %s? [y/N] ' "$e"; read -r a; case "$a" in y|Y) ;; *) exit 0;; esac; fi
+  echo; cat "$EX_DIR/$e/solution.md"
+}
+
+cmd_graph() {
+  e=$(resolve "${1:-}"); d="$LG_HOME/$e/$(workdir "$e")"
+  git -C "$d" rev-parse --git-dir >/dev/null 2>&1 || die "No repository at $d"
+  git -C "$d" log --graph --oneline --decorate --all --color=always -n "${2:-40}"
+  git -C "$d" stash list 2>/dev/null | sed "s/^/$D  stash: /;s/\$/$X/"
+}
+
+cmd_event() {
+  e=$(resolve "${1:-}"); [ -f "$EX_DIR/$e/event.sh" ] || die "This exercise has no event."
+  run_script "$e" setup.sh event.sh && printf '%sSomething just happened on the team…%s (see the task)\n' "$Y" "$X"
+}
+
+next_unsolved() { for e in $(all_ex); do done_mark "$e" || { echo "$e"; return 0; }; done; return 0; }
+
+cmd_doctor() {
+  printf 'bash  %s\n' "$BASH_VERSION"
+  printf 'git   %s\n' "$(git --version 2>/dev/null || echo MISSING)"
+  printf 'gh    %s\n' "$(gh --version 2>/dev/null | head -1 || true)"
+  git filter-repo --version >/dev/null 2>&1 && echo "filter-repo ok" || echo "filter-repo missing (only needed for 2 exercises: brew install git-filter-repo)"
+  printf 'name  %s\nemail %s\n' "$(git config --global user.name || echo '(not set)')" "$(git config --global user.email || echo '(not set)')"
+  printf 'playground %s\n' "$LG_HOME"
+}
+
+usage() {
+  cat <<EOF
+${B}learngit${X} — hands-on Git & GitHub practice
+
+  ./lg list             all exercises and your progress
+  ./lg start <n>        build exercise n in a fresh sandbox and show the task
+  ./lg task             show the current task again
+  ./lg check            check your solution
+  ./lg hint             next hint (run again for more)
+  ./lg graph            draw the commit graph of the sandbox repo
+  ./lg event            trigger the exercise's "meanwhile, on the team…" event (when the task says so)
+  ./lg solution         show the worked solution
+  ./lg reset            rebuild the current exercise from scratch
+  ./lg next             start the next unsolved exercise
+  ./lg where            print the sandbox path (cd "\$(./lg where)")
+  ./lg doctor           check your tools
+EOF
+}
+
+c=${1:-help}; [ $# -gt 0 ] && shift
+case "$c" in
+  list|ls) cmd_list ;;
+  start) cmd_start "$@" ;;
+  task|show) e=$(resolve "${1:-}"); show_task "$e" ;;
+  check) cmd_check "$@" ;;
+  hint) cmd_hint "$@" ;;
+  solution|solve) cmd_solution "$@" ;;
+  graph) cmd_graph "$@" ;;
+  event) cmd_event "$@" ;;
+  reset) e=$(resolve "${1:-}"); cmd_start "${e%%-*}" ;;
+  next) nx=$(next_unsolved); [ -n "$nx" ] || { echo "Everything solved. 🏆"; exit 0; }; cmd_start "${nx%%-*}" ;;
+  where) e=$(resolve "${1:-}"); echo "$LG_HOME/$e/$(workdir "$e")" ;;
+  doctor) cmd_doctor ;;
+  help|-h|--help) usage ;;
+  *) usage; exit 1 ;;
+esac

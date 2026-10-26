@@ -1,0 +1,14 @@
+# Used only while an exercise is being set up, so your personal ~/.gitconfig
+# (hooks, signing, templates, pull settings) can't change how scenarios are built.
+[init]
+	defaultBranch = main
+[commit]
+	gpgsign = false
+[tag]
+	gpgsign = false
+[core]
+	autocrlf = false
+[advice]
+	detachedHead = false
+[protocol "file"]
+	allow = always

@@ -1,0 +1,35 @@
+name: exercises
+
+# Every exercise is self-tested: set up the scenario, confirm the check fails,
+# run the reference solution, confirm the check passes.
+# macOS runs with /bin/bash 3.2 to make sure everything works on a stock Mac.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            shell_bin: bash
+          - os: macos-latest
+            shell_bin: /bin/bash
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install git-filter-repo
+        run: python3 -m pip install --user --break-system-packages git-filter-repo || python3 -m pip install --user git-filter-repo
+      - name: Git identity for tests
+        run: |
+          git config --global user.name "CI Learner"
+          git config --global user.email "ci@example.com"
+      - name: Run all exercises
+        env:
+          LG_TEST_BASH: ${{ matrix.shell_bin }}
+        run: |
+          export PATH="$HOME/.local/bin:$(python3 -m site --user-base)/bin:$PATH"
+          ${{ matrix.shell_bin }} test/run-all.sh
